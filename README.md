@@ -7,6 +7,24 @@
 [![GoDoc](https://godoc.org/github.com/google/syzkaller?status.svg)](https://godoc.org/github.com/google/syzkaller)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
+> **TensorFunnel fork.** This tree is `RandomLemon/syzkaller` (branch `tensorfunnel`), vendored into
+> the TensorFunnel repo as the `syzkaller/` submodule. On top of upstream it adds NVIDIA GPU driver
+> fuzzing support:
+>
+> * `sys/linux/dev_nvidia.txt` + `dev_nvidia.txt.const` — descriptions for `/dev/nvidia*`
+>   (`ioctl$NV_ESC_*`, `ioctl$UVM_*`, `syz_open_dev$nvidia*`, `dup$nvidia*`).
+> * `tools/nvidia_corpus_check` — loads a `corpus.db` and reports how many programs deserialize.
+>   `syz-manager` silently drops programs that fail this, so run it on any corpus you generate:
+>
+>   ```bash
+>   go run ./tools/nvidia_corpus_check /path/to/corpus.db    # expect: deserialized ok=1 bad=0
+>   ```
+>
+> After editing the descriptions, regenerate with `go build -o bin/syz-sysgen ./sys/syz-sysgen
+> && ./bin/syz-sysgen` (updates `sys/gen/*.gob.flate` and `sys/register.go`). The `trace2syz/` and
+> `moonshine/` converter submodules read these descriptions directly via a `replace` directive, so
+> there is a single source of truth. See the repo root `AGENTS.md` and `docs/` for the pipeline.
+
 `syzkaller` (`[siːzˈkɔːlə]`) is an unsupervised coverage-guided kernel fuzzer.\
 Supported OSes: `FreeBSD`, `Fuchsia`, `gVisor`, `Linux`, `NetBSD`, `OpenBSD`, `Windows`.
 
