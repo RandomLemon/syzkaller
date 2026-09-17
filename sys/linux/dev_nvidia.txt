@@ -1,0 +1,275 @@
+# Copyright 2026 TensorFunnel project authors. All rights reserved.
+# Use of this source code is governed by Apache 2 LICENSE that can be found in the LICENSE file.
+#
+# NVIDIA proprietary GPU driver (open-gpu-kernel-modules 590.48.01).
+# Request layout: _IOWR(NV_IOCTL_MAGIC='F', nr, struct)
+# Companion constant file: dev_nvidia.txt.const (arches = amd64).
+
+meta noextract
+meta arches["amd64"]
+resource fd_nvidia[fd]
+resource fd_nvidiactl[fd_nvidia]
+resource fd_nvidia_dev[fd_nvidia]
+resource fd_nvidia_uvm[fd_nvidia]
+
+define NV_ESC_REGISTER_FD 3221505737
+define NV_ESC_RM_CONTROL 3223340586
+define NV_ESC_RM_ALLOC 3224389163
+define NV_ESC_RM_FREE 3222292009
+define NV_ESC_RM_MAP_MEMORY 3224913486
+define NV_ESC_RM_ALLOC_MEMORY 3224913447
+define NV_ESC_CARD_INFO 3372238536
+define NV_ESC_NUMA_INFO 3257943767
+define NV_ESC_ALLOC_OS_EVENT 3222292174
+define NV_ESC_RM_UPDATE_DEVICE_MAPPING_INFO	3223864926	# 0xc028465e
+define UVM_INITIALIZE 805306369
+define UVM_MM_INITIALIZE 75
+
+syz_open_dev$nvidiactl(dev ptr[in, string["/dev/nvidiactl"]], id intptr, flags flags[open_flags]) fd_nvidiactl
+syz_open_dev$nvidia(dev ptr[in, string["/dev/nvidia#"]], id intptr, flags flags[open_flags]) fd_nvidia_dev
+syz_open_dev$nvidia_uvm(dev ptr[in, string["/dev/nvidia-uvm"]], id intptr, flags flags[open_flags]) fd_nvidia_uvm
+
+ioctl$NV_ESC_RM_CONTROL(fd fd_nvidiactl, cmd const[NV_ESC_RM_CONTROL], arg ptr[in, nvos54])
+ioctl$NV_ESC_RM_CONTROL_dev(fd fd_nvidia_dev, cmd const[NV_ESC_RM_CONTROL], arg ptr[in, nvos54])
+ioctl$NV_ESC_RM_ALLOC(fd fd_nvidiactl, cmd const[NV_ESC_RM_ALLOC], arg ptr[in, nvos64])
+ioctl$NV_ESC_RM_FREE(fd fd_nvidiactl, cmd const[NV_ESC_RM_FREE], arg ptr[in, nvos00])
+ioctl$NV_ESC_RM_FREE_dev(fd fd_nvidia_dev, cmd const[NV_ESC_RM_FREE], arg ptr[in, nvos00])
+ioctl$NV_ESC_RM_MAP_MEMORY(fd fd_nvidiactl, cmd const[NV_ESC_RM_MAP_MEMORY], arg ptr[in, nv_ioctl_nvos33_fd])
+ioctl$NV_ESC_RM_ALLOC_MEMORY(fd fd_nvidiactl, cmd const[NV_ESC_RM_ALLOC_MEMORY], arg ptr[in, nv_ioctl_nvos02_fd])
+ioctl$NV_ESC_REGISTER_FD(fd fd_nvidia_dev, cmd const[NV_ESC_REGISTER_FD], arg ptr[in, nv_ioctl_register_fd])
+ioctl$NV_ESC_CARD_INFO(fd fd_nvidiactl, cmd const[NV_ESC_CARD_INFO], arg ptr[out, array[nv_ioctl_card_info, 32]])
+ioctl$NV_ESC_NUMA_INFO(fd fd_nvidia_dev, cmd const[NV_ESC_NUMA_INFO], arg ptr[inout, nv_ioctl_numa_info])
+ioctl$NV_ESC_ALLOC_OS_EVENT(fd fd_nvidiactl, cmd const[NV_ESC_ALLOC_OS_EVENT], arg ptr[inout, nv_ioctl_os_event])
+ioctl$UVM_INITIALIZE(fd fd_nvidia_uvm, cmd const[UVM_INITIALIZE], arg ptr[inout, uvm_initialize_params])
+ioctl$UVM_MM_INITIALIZE(fd fd_nvidia_uvm, cmd const[UVM_MM_INITIALIZE], arg ptr[inout, uvm_mm_initialize_params])
+
+ioctl$NV_ESC_RM_ALLOC_dev(fd fd_nvidia_dev, cmd const[NV_ESC_RM_ALLOC], arg ptr[in, nvos64])
+ioctl$NV_ESC_RM_ALLOC_MEMORY_dev(fd fd_nvidia_dev, cmd const[NV_ESC_RM_ALLOC_MEMORY], arg ptr[in, nv_ioctl_nvos02_fd])
+ioctl$NV_ESC_RM_MAP_MEMORY_dev(fd fd_nvidia_dev, cmd const[NV_ESC_RM_MAP_MEMORY], arg ptr[in, nv_ioctl_nvos33_fd])
+ioctl$NV_ESC_ALLOC_OS_EVENT_dev(fd fd_nvidia_dev, cmd const[NV_ESC_ALLOC_OS_EVENT], arg ptr[inout, nv_ioctl_os_event])
+ioctl$NV_ESC_RM_UPDATE_DEVICE_MAPPING_INFO(fd fd_nvidiactl, cmd const[NV_ESC_RM_UPDATE_DEVICE_MAPPING_INFO], arg ptr[in, nvos56])
+
+nvos56 {
+	hClient		int32
+	hDevice		int32
+	hMemory		int32
+	pOldCpuAddress	int64
+	pNewCpuAddress	int64
+	status		int32
+}
+
+nvos54 {
+	hClient		int32
+	hObject		int32
+	cmd		int32
+	flags		flags[nvos54_flags, int32]
+	params		ptr[in, array[int8]]
+	paramsSize	len[params, int32]
+	status		int32
+}
+
+nvos54_flags = 0, 1, 2, 4
+
+nvos64 {
+	hRoot			int32
+	hObjectParent		int32
+	hObjectNew		int32
+	hClass			int32
+	pAllocParms		ptr[in, array[int8]]
+	pRightsRequested	ptr[in, array[int8]]
+	paramsSize		len[pAllocParms, int32]
+	flags			flags[nvos64_flags, int32]
+	status			int32
+}
+
+nvos64_flags = 0, 1
+
+nvos00 {
+	hRoot		int32
+	hObjectParent	int32
+	hObjectOld	int32
+	status		int32
+}
+
+nv_ioctl_nvos02_fd {
+	params	nvos02
+	fd	fd
+}
+
+nvos02 {
+	hRoot		int32
+	hObjectParent	int32
+	hObjectNew	int32
+	hClass		int32
+	flags		flags[nvos02_flags, int32]
+	pMemory		ptr[in, array[int8]]
+	limit		int64
+	status		int32
+}
+
+nvos02_flags = 0, 1, 2147483648
+
+nv_ioctl_nvos33_fd {
+	params	nvos33
+	fd	fd
+}
+
+nvos33 {
+	hClient		int32
+	hDevice		int32
+	hMemory		int32
+	offset		int64
+	length		int64
+	pLinearAddress	int64
+	status		int32
+	flags		flags[nvos33_flags, int32]
+}
+
+nvos33_flags = 0, 1, 2
+
+nv_ioctl_register_fd {
+	ctl_fd	fd
+}
+
+nv_ioctl_os_event {
+	hClient	int32
+	hDevice	int32
+	fd	fd
+	status	int32
+}
+
+nv_pci_info {
+	domain		int32
+	bus		int8
+	slot		int8
+	function	int8
+	pad		const[0, int8]
+	vendor_id	int16
+	device_id	int16
+}
+
+nv_ioctl_card_info {
+	valid		int32
+	pci_info	nv_pci_info
+	gpu_id		int32
+	interrupt_line	int16
+	pad		const[0, int16]
+	reg_address	int64
+	reg_size	int64
+	fb_address	int64
+	fb_size		int64
+	minor_number	int32
+	dev_name	array[int8, 10]
+	pad1		const[0, int32]
+}
+
+nv_ioctl_numa_info {
+	nid			int32
+	status			int32
+	memblock_size		int64
+	numa_mem_addr		int64
+	numa_mem_size		int64
+	use_auto_online		int8
+	pad			array[int8, 7]
+	offline_addresses	array[int64, 64]
+	num_entries		int32
+}
+
+uvm_initialize_params {
+	flags		int64
+	rm_status	int32
+}
+
+uvm_mm_initialize_params {
+	event_buffer_ptr	int64
+	control_ptr		int64
+	rm_status		int32
+}
+
+# dup/dup3 variants that preserve the device resource type.
+# CUDA duplicates device descriptors; without these the generic `dup` returns a
+# plain `fd` and later ioctls cannot match ioctl$NV_ESC_* variants.
+dup$nvidiactl(oldfd fd_nvidiactl) fd_nvidiactl
+dup$nvidia(oldfd fd_nvidia_dev) fd_nvidia_dev
+dup$nvidia_uvm(oldfd fd_nvidia_uvm) fd_nvidia_uvm
+dup3$nvidiactl(oldfd fd_nvidiactl, newfd fd_nvidiactl, flags flags[dup_flags]) fd_nvidiactl
+dup3$nvidia(oldfd fd_nvidia_dev, newfd fd_nvidia_dev, flags flags[dup_flags]) fd_nvidia_dev
+dup3$nvidia_uvm(oldfd fd_nvidia_uvm, newfd fd_nvidia_uvm, flags flags[dup_flags]) fd_nvidia_uvm
+
+# Additional UVM commands observed in the CUDA trace (see scripts/nvidia_trace_stats.py).
+define UVM_CREATE_RANGE_GROUP	23
+define UVM_REGISTER_GPU_VASPACE	25
+define UVM_REGISTER_CHANNEL	27
+define UVM_MAP_EXTERNAL_ALLOCATION	33
+define UVM_FREE			34
+define UVM_REGISTER_GPU		37
+define UVM_PAGEABLE_MEM_ACCESS	39
+define UVM_MAP_DYNAMIC_PARALLELISM_REGION	65
+define UVM_ALLOC_SEMAPHORE_POOL	68
+define UVM_VALIDATE_VA_RANGE	72
+define UVM_CREATE_EXTERNAL_RANGE	73
+
+
+ioctl$UVM_CREATE_RANGE_GROUP(fd fd_nvidia_uvm, cmd const[UVM_CREATE_RANGE_GROUP], arg ptr[in, uvm_create_range_group_params])
+ioctl$UVM_REGISTER_GPU_VASPACE(fd fd_nvidia_uvm, cmd const[UVM_REGISTER_GPU_VASPACE], arg ptr[in, uvm_register_gpu_va_space_params])
+ioctl$UVM_REGISTER_CHANNEL(fd fd_nvidia_uvm, cmd const[UVM_REGISTER_CHANNEL], arg ptr[in, uvm_register_channel_params])
+ioctl$UVM_MAP_EXTERNAL_ALLOCATION(fd fd_nvidia_uvm, cmd const[UVM_MAP_EXTERNAL_ALLOCATION], arg ptr[inout, uvm_map_external_allocation_params])
+ioctl$UVM_FREE(fd fd_nvidia_uvm, cmd const[UVM_FREE], arg ptr[in, uvm_free_params])
+ioctl$UVM_REGISTER_GPU(fd fd_nvidia_uvm, cmd const[UVM_REGISTER_GPU], arg ptr[in, uvm_register_gpu_params])
+ioctl$UVM_PAGEABLE_MEM_ACCESS(fd fd_nvidia_uvm, cmd const[UVM_PAGEABLE_MEM_ACCESS], arg ptr[inout, uvm_pageable_mem_access_params])
+ioctl$UVM_MAP_DYNAMIC_PARALLELISM_REGION(fd fd_nvidia_uvm, cmd const[UVM_MAP_DYNAMIC_PARALLELISM_REGION], arg ptr[in, uvm_map_dynamic_parallelism_region_params])
+ioctl$UVM_ALLOC_SEMAPHORE_POOL(fd fd_nvidia_uvm, cmd const[UVM_ALLOC_SEMAPHORE_POOL], arg ptr[in, uvm_alloc_semaphore_pool_params])
+ioctl$UVM_VALIDATE_VA_RANGE(fd fd_nvidia_uvm, cmd const[UVM_VALIDATE_VA_RANGE], arg ptr[in, uvm_validate_va_range_params])
+ioctl$UVM_CREATE_EXTERNAL_RANGE(fd fd_nvidia_uvm, cmd const[UVM_CREATE_EXTERNAL_RANGE], arg ptr[inout, uvm_create_external_range_params])
+uvm_create_range_group_params {
+	range_group_handle	int64
+}
+
+uvm_register_gpu_va_space_params {
+	gpu_uuid	array[int8, 16]
+	va_space	int64
+}
+
+uvm_register_channel_params {
+	gpu_uuid	array[int8, 16]
+	channel_handle	int64
+}
+
+uvm_map_external_allocation_params {
+	base	int64
+	length	int64
+	gpu_uuid	array[int8, 16]
+}
+
+uvm_free_params {
+	base	int64
+	length	int64
+}
+
+uvm_register_gpu_params {
+	gpu_uuid	array[int8, 16]
+}
+
+uvm_pageable_mem_access_params {
+	pageable_mem_access	int8
+}
+
+uvm_map_dynamic_parallelism_region_params {
+	base	int64
+	length	int64
+}
+
+uvm_alloc_semaphore_pool_params {
+	base	int64
+	length	int64
+}
+
+uvm_validate_va_range_params {
+	base	int64
+	length	int64
+}
+
+uvm_create_external_range_params {
+	base	int64
+	length	int64
+}
