@@ -146,7 +146,7 @@ nv_pci_info {
 	pad		const[0, int8]
 	vendor_id	int16
 	device_id	int16
-}
+} [size[12]]
 
 nv_ioctl_card_info {
 	valid		int32
@@ -160,8 +160,7 @@ nv_ioctl_card_info {
 	fb_size		int64
 	minor_number	int32
 	dev_name	array[int8, 10]
-	pad1		const[0, int32]
-}
+} [size[72]]
 
 nv_ioctl_numa_info {
 	nid			int32
@@ -173,18 +172,17 @@ nv_ioctl_numa_info {
 	pad			array[int8, 7]
 	offline_addresses	array[int64, 64]
 	num_entries		int32
-}
+} [size[560]]
 
 uvm_initialize_params {
 	flags		int64
 	rm_status	int32
-}
+} [size[16]]
 
 uvm_mm_initialize_params {
-	event_buffer_ptr	int64
-	control_ptr		int64
-	rm_status		int32
-}
+	uvm_fd		int32
+	rm_status	int32
+} [size[8]]
 
 # dup/dup3 variants that preserve the device resource type.
 # CUDA duplicates device descriptors; without these the generic `dup` returns a
@@ -221,55 +219,107 @@ ioctl$UVM_MAP_DYNAMIC_PARALLELISM_REGION(fd fd_nvidia_uvm, cmd const[UVM_MAP_DYN
 ioctl$UVM_ALLOC_SEMAPHORE_POOL(fd fd_nvidia_uvm, cmd const[UVM_ALLOC_SEMAPHORE_POOL], arg ptr[in, uvm_alloc_semaphore_pool_params])
 ioctl$UVM_VALIDATE_VA_RANGE(fd fd_nvidia_uvm, cmd const[UVM_VALIDATE_VA_RANGE], arg ptr[in, uvm_validate_va_range_params])
 ioctl$UVM_CREATE_EXTERNAL_RANGE(fd fd_nvidia_uvm, cmd const[UVM_CREATE_EXTERNAL_RANGE], arg ptr[inout, uvm_create_external_range_params])
+# Every UVM ioctl number is a bare integer (uvm_ioctl.h: UVM_IOCTL_BASE(i) = i),
+# so unlike the _IOWR('F', nr, struct) escape path nothing in the request encodes
+# the argument size.  The driver still copies exactly sizeof(struct) to and from
+# user space (UVM_ROUTE_CMD_STACK, uvm_api.h), and a short user buffer is read
+# past its end, so the modelled size must equal the C sizeof.  The [size[N]]
+# attributes below turn that invariant into a compile-time error in syz-sysgen
+# instead of a silently truncated copy.  Layouts and sizes come from the real
+# headers under open-gpu-kernel-modules/kernel-open/nvidia-uvm.
+
+# UvmGpuMappingAttributes (uvm_types.h): NvProcessorUuid is 16 B with align 1.
+uvm_gpu_mapping_attributes {
+	gpu_uuid		array[int8, 16]
+	gpu_mapping_type	int32
+	gpu_caching_type	int32
+	gpu_format_type	int32
+	gpu_element_bits	int32
+	gpu_compression_type	int32
+} [size[36]]
+
 uvm_create_range_group_params {
 	range_group_handle	int64
-}
+	rm_status		int32
+} [size[16]]
 
 uvm_register_gpu_va_space_params {
 	gpu_uuid	array[int8, 16]
-	va_space	int64
-}
+	rm_ctrl_fd	int32
+	h_client	int32
+	h_va_space	int32
+	rm_status	int32
+} [size[32]]
 
 uvm_register_channel_params {
 	gpu_uuid	array[int8, 16]
-	channel_handle	int64
-}
+	rm_ctrl_fd	int32
+	h_client	int32
+	h_channel	int32
+	base		int64
+	length		int64
+	rm_status	int32
+} [size[56]]
 
+# perGpuAttributes[UVM_MAX_GPUS] is 256 * 36 = 9216 B (NV_MAX_DEVICES 32 *
+# UVM_PARENT_ID_MAX_SUB_PROCESSORS 8).
 uvm_map_external_allocation_params {
-	base	int64
-	length	int64
-	gpu_uuid	array[int8, 16]
-}
+	base			int64
+	length			int64
+	offset			int64
+	per_gpu_attributes	array[uvm_gpu_mapping_attributes, 256]
+	gpu_attributes_count	int64
+	rm_ctrl_fd		int32
+	h_client		int32
+	h_memory		int32
+	rm_status		int32
+} [size[9264]]
 
 uvm_free_params {
-	base	int64
-	length	int64
-}
+	base		int64
+	rm_status	int32
+} [size[16]]
 
 uvm_register_gpu_params {
-	gpu_uuid	array[int8, 16]
-}
+	gpu_uuid		array[int8, 16]
+	numa_enabled		int8
+	pad			array[int8, 3]
+	numa_node_id		int32
+	rm_ctrl_fd		int32
+	h_client		int32
+	h_smc_part_ref		int32
+	rm_status		int32
+} [size[40]]
 
 uvm_pageable_mem_access_params {
 	pageable_mem_access	int8
-}
+	pad			array[int8, 3]
+	rm_status		int32
+} [size[8]]
 
 uvm_map_dynamic_parallelism_region_params {
-	base	int64
-	length	int64
-}
+	base		int64
+	length		int64
+	gpu_uuid	array[int8, 16]
+	rm_status	int32
+} [size[40]]
 
 uvm_alloc_semaphore_pool_params {
-	base	int64
-	length	int64
-}
+	base			int64
+	length			int64
+	per_gpu_attributes	array[uvm_gpu_mapping_attributes, 256]
+	gpu_attributes_count	int64
+	rm_status		int32
+} [size[9248]]
 
 uvm_validate_va_range_params {
-	base	int64
-	length	int64
-}
+	base		int64
+	length		int64
+	rm_status	int32
+} [size[24]]
 
 uvm_create_external_range_params {
-	base	int64
-	length	int64
-}
+	base		int64
+	length		int64
+	rm_status	int32
+} [size[24]]
