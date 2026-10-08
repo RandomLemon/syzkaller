@@ -121,15 +121,15 @@ func linuxSyzOpenDevSupported(ctx *checkContext, call *prog.Syscall) string {
 		panic("first open arg is not a pointer to string const")
 	}
 	hashCount := strings.Count(fname, "#")
-	if hashCount == 0 {
-		panic(fmt.Sprintf("%v does not contain # in the file name", call.Name))
-	}
 	if hashCount > 2 {
 		// If this fails, the logic below needs an adjustment.
 		panic(fmt.Sprintf("%v contains too many #", call.Name))
 	}
 	var ids []int
-	if _, ok := call.Args[1].Type.(*prog.ProcType); ok {
+	if _, ok := call.Args[1].Type.(*prog.ProcType); ok || hashCount == 0 {
+		// A fixed-name device carries no '#' (e.g. /dev/nvidiactl) and the id
+		// argument is unused: syz_open_dev opens the literal path then
+		// (executor/common_linux.h), so one probe with id 0 is enough.
 		ids = []int{0}
 	} else {
 		for i := 0; i < 5; i++ {
