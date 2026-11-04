@@ -196,6 +196,7 @@ dup3$nvidia_uvm(oldfd fd_nvidia_uvm, newfd fd_nvidia_uvm, flags flags[dup_flags]
 
 # Additional UVM commands observed in the CUDA trace (see scripts/nvidia_trace_stats.py).
 define UVM_CREATE_RANGE_GROUP	23
+define UVM_DESTROY_RANGE_GROUP	24
 define UVM_REGISTER_GPU_VASPACE	25
 define UVM_REGISTER_CHANNEL	27
 define UVM_MAP_EXTERNAL_ALLOCATION	33
@@ -209,6 +210,7 @@ define UVM_CREATE_EXTERNAL_RANGE	73
 
 
 ioctl$UVM_CREATE_RANGE_GROUP(fd fd_nvidia_uvm, cmd const[UVM_CREATE_RANGE_GROUP], arg ptr[in, uvm_create_range_group_params])
+ioctl$UVM_DESTROY_RANGE_GROUP(fd fd_nvidia_uvm, cmd const[UVM_DESTROY_RANGE_GROUP], arg ptr[in, uvm_destroy_range_group_params])
 ioctl$UVM_REGISTER_GPU_VASPACE(fd fd_nvidia_uvm, cmd const[UVM_REGISTER_GPU_VASPACE], arg ptr[in, uvm_register_gpu_va_space_params])
 ioctl$UVM_REGISTER_CHANNEL(fd fd_nvidia_uvm, cmd const[UVM_REGISTER_CHANNEL], arg ptr[in, uvm_register_channel_params])
 ioctl$UVM_MAP_EXTERNAL_ALLOCATION(fd fd_nvidia_uvm, cmd const[UVM_MAP_EXTERNAL_ALLOCATION], arg ptr[inout, uvm_map_external_allocation_params])
@@ -239,6 +241,11 @@ uvm_gpu_mapping_attributes {
 } [size[36]]
 
 uvm_create_range_group_params {
+	range_group_handle	int64
+	rm_status		int32
+} [size[16]]
+
+uvm_destroy_range_group_params {
 	range_group_handle	int64
 	rm_status		int32
 } [size[16]]
