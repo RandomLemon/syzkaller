@@ -11,6 +11,21 @@ resource fd_nvidia[fd]
 resource fd_nvidiactl[fd_nvidia]
 resource fd_nvidia_dev[fd_nvidia]
 resource fd_nvidia_uvm[fd_nvidia]
+# RM object handle (NvHandle).  NV_ESC_RM_ALLOC and NV_ESC_RM_ALLOC_MEMORY
+# return it in the hObjectNew field rather than in the ioctl return value, so
+# the field is `(inout)`: the executor copies it out after the call (the driver
+# overwrites it) and later hClient/hObject fields consume the copied value.
+# The generic nvos64/nvos02 fields use `(inout)` so older corpus programs, which
+# carry the traced post-call value, still validate (an out resource rejects any
+# non-default constant).  The typed root-client/device slices keep `(out)`:
+# they are the cycle-free creators that let syz-manager's transitive enable
+# analysis accept nvidia_handle at all -- an inout-only resource is treated as
+# an input of every alloc too, so nothing can create it.  A single kind is
+# intentional: the driver enforces the client/device/memory class, and one
+# kind lets an allocation of any class feed any later handle field.  Handles
+# are per-client scalars (0xc1d... / 0x5c... / 0xcaf... in the traces), never
+# descriptors, so this is a resource purely for ordering/dataflow.
+resource nvidia_handle[int32]
 
 define NV_ESC_REGISTER_FD 3221505737
 define NV_ESC_RM_CONTROL 3223340586
@@ -55,7 +70,14 @@ define UVM_INITIALIZE 805306369
 define UVM_MM_INITIALIZE 75
 
 syz_open_dev$nvidiactl(dev ptr[in, string["/dev/nvidiactl"]], id intptr, flags flags[open_flags]) fd_nvidiactl
-syz_open_dev$nvidia(dev ptr[in, string["/dev/nvidia#"]], id intptr, flags flags[open_flags]) fd_nvidia_dev
+# Opening /dev/nvidia0 runs the GPU init path and costs ~1.7 s in the guest
+# (measured 2026-11-28), far above the default 50 ms syscall timeout.  Without
+# the per-call timeout the threaded executor schedules the next call while the
+# open is still initializing, so an RM allocation issued on nvidiactl blocks on
+# the device-init lock and its consumer reads the resource default 0
+# (NV_ERR_INVALID_OBJECT_HANDLE).  3 s keeps the call synchronous; the program
+# timeout is raised because a split segment can replay up to four such opens.
+syz_open_dev$nvidia(dev ptr[in, string["/dev/nvidia#"]], id intptr, flags flags[open_flags]) fd_nvidia_dev (timeout[3000], prog_timeout[10000])
 syz_open_dev$nvidia_uvm(dev ptr[in, string["/dev/nvidia-uvm"]], id intptr, flags flags[open_flags]) fd_nvidia_uvm
 
 ioctl$NV_ESC_RM_CONTROL(fd fd_nvidiactl, cmd const[NV_ESC_RM_CONTROL], arg ptr[in, nvos54])
@@ -69,6 +91,12 @@ ioctl$NV_ESC_RM_CONTROL_GPFIFO_GET_WORK_SUBMIT_TOKEN(fd fd_nvidiactl, cmd const[
 ioctl$NV_ESC_RM_CONTROL_FIFO_GET_CHANNELLIST(fd fd_nvidiactl, cmd const[NV_ESC_RM_CONTROL], arg ptr[in, nvos54_fifo_get_channellist])
 ioctl$NV_ESC_RM_CONTROL_GR_GET_CTX_BUFFER_SIZE(fd fd_nvidiactl, cmd const[NV_ESC_RM_CONTROL], arg ptr[in, nvos54_gr_get_ctx_buffer_size])
 ioctl$NV_ESC_RM_ALLOC(fd fd_nvidiactl, cmd const[NV_ESC_RM_ALLOC], arg ptr[in, nvos64])
+# Typed allocation slices.  The converter keeps picking the generic nvos64
+# above for traced allocations (first match on (fd resource, request) wins);
+# these give syzkaller a class-correct producer for the handles consumed by
+# the control calls: a root client, then an NV01_DEVICE_0 object.
+ioctl$NV_ESC_RM_ALLOC_ROOT_CLIENT(fd fd_nvidiactl, cmd const[NV_ESC_RM_ALLOC], arg ptr[in, nvos64_root_client])
+ioctl$NV_ESC_RM_ALLOC_DEVICE(fd fd_nvidiactl, cmd const[NV_ESC_RM_ALLOC], arg ptr[in, nvos64_device])
 ioctl$NV_ESC_RM_FREE(fd fd_nvidiactl, cmd const[NV_ESC_RM_FREE], arg ptr[in, nvos00])
 ioctl$NV_ESC_RM_FREE_dev(fd fd_nvidia_dev, cmd const[NV_ESC_RM_FREE], arg ptr[in, nvos00])
 ioctl$NV_ESC_RM_MAP_MEMORY(fd fd_nvidiactl, cmd const[NV_ESC_RM_MAP_MEMORY], arg ptr[in, nv_ioctl_nvos33_fd])
@@ -109,9 +137,9 @@ ioctl$NV_ESC_RM_UNMAP_MEMORY(fd fd_nvidiactl, cmd const[NV_ESC_RM_UNMAP_MEMORY],
 ioctl$NV_ESC_RM_SHARE(fd fd_nvidiactl, cmd const[NV_ESC_RM_SHARE], arg ptr[in, nvos57])
 
 nvos56 {
-	hClient		int32
-	hDevice		int32
-	hMemory		int32
+	hClient		nvidia_handle
+	hDevice		nvidia_handle
+	hMemory		nvidia_handle
 	pOldCpuAddress	int64
 	pNewCpuAddress	int64
 	status		int32
@@ -171,7 +199,7 @@ nv_ioctl_wait_open_complete {
 # sizes at 1576), status at 2600 and the struct pads to 2608.
 nv_ioctl_export_to_dma_buf_fd {
 	fd		int32
-	h_client	int32
+	h_client	nvidia_handle
 	total_objects	int32
 	num_objects	int32
 	index		int32
@@ -190,9 +218,9 @@ nv_ioctl_export_to_dma_buf_fd {
 # nvos.h: NVOS34_PARAMETERS (NV_ESC_RM_UNMAP_MEMORY).  pLinearAddress is
 # 8-byte aligned, hence the 4-byte pad after hMemory.
 nvos34 {
-	h_client		int32
-	h_device		int32
-	h_memory		int32
+	h_client		nvidia_handle
+	h_device		nvidia_handle
+	h_memory		nvidia_handle
 	pad			const[0, int32]
 	p_linear_address	int64
 	status			int32
@@ -211,15 +239,15 @@ nvos57_share_policy {
 
 # nvos.h: NVOS57_PARAMETERS (NV_ESC_RM_SHARE).
 nvos57 {
-	h_client	int32
-	h_object	int32
+	h_client	nvidia_handle
+	h_object	nvidia_handle
 	share_policy	nvos57_share_policy
 	status		int32
 } [size[24]]
 
 nvos54 {
-	hClient		int32
-	hObject		int32
+	hClient		nvidia_handle
+	hObject		nvidia_handle
 	cmd		int32
 	flags		flags[nvos54_flags, int32]
 	params		ptr[in, array[int8]]
@@ -232,14 +260,14 @@ nvos54_flags = 0, 1, 2, 4
 # ---- RM_CONTROL typed sub-command slices ----
 # ctrl0000client.h: NV0000_CTRL_CLIENT_GET_ADDR_SPACE_TYPE_PARAMS.
 nv0000_ctrl_client_get_addr_space_type_params {
-	hObject		int32
+	hObject		nvidia_handle
 	mapFlags	int32
 	addrSpaceType	int32
 } [size[12]]
 
 # ctrl906f.h: NV906F_CTRL_GET_CLASS_ENGINEID_PARAMS.
 nv906f_ctrl_get_class_engineid_params {
-	hObject		int32
+	hObject		nvidia_handle
 	classEngineID	int32
 	classID		int32
 	engineID	int32
@@ -257,20 +285,20 @@ nvc36f_ctrl_cmd_gpfifo_get_work_submit_token_params {
 # value).
 nv0080_ctrl_fifo_get_channellist_params {
 	numChannels		int32
-	pChannelHandleList	ptr[in, array[int32]]
+	pChannelHandleList	ptr[in, array[nvidia_handle]]
 	pChannelList		ptr[out, array[int32]]
 } [size[24]]
 
 # ctrl2080/ctrl2080gr.h: NV2080_CTRL_GR_GET_CTX_BUFFER_SIZE_PARAMS.
 # totalBufferSize is 8-byte aligned; the compiler inserts the 4-byte pad.
 nv2080_ctrl_gr_get_ctx_buffer_size_params {
-	hChannel	int32
+	hChannel	nvidia_handle
 	totalBufferSize	int64
 } [size[16]]
 
 nvos54_client_get_addr_space_type {
-	hClient		int32
-	hObject		int32
+	hClient		nvidia_handle
+	hObject		nvidia_handle
 	cmd		const[NV0000_CTRL_CMD_CLIENT_GET_ADDR_SPACE_TYPE, int32]
 	flags		flags[nvos54_flags, int32]
 	params		ptr[inout, nv0000_ctrl_client_get_addr_space_type_params]
@@ -279,8 +307,8 @@ nvos54_client_get_addr_space_type {
 } [size[32]]
 
 nvos54_get_class_engineid {
-	hClient		int32
-	hObject		int32
+	hClient		nvidia_handle
+	hObject		nvidia_handle
 	cmd		const[NV906F_CTRL_GET_CLASS_ENGINEID, int32]
 	flags		flags[nvos54_flags, int32]
 	params		ptr[inout, nv906f_ctrl_get_class_engineid_params]
@@ -289,8 +317,8 @@ nvos54_get_class_engineid {
 } [size[32]]
 
 nvos54_gpfifo_get_work_submit_token {
-	hClient		int32
-	hObject		int32
+	hClient		nvidia_handle
+	hObject		nvidia_handle
 	cmd		const[NVC36F_CTRL_CMD_GPFIFO_GET_WORK_SUBMIT_TOKEN, int32]
 	flags		flags[nvos54_flags, int32]
 	params		ptr[inout, nvc36f_ctrl_cmd_gpfifo_get_work_submit_token_params]
@@ -299,8 +327,8 @@ nvos54_gpfifo_get_work_submit_token {
 } [size[32]]
 
 nvos54_fifo_get_channellist {
-	hClient		int32
-	hObject		int32
+	hClient		nvidia_handle
+	hObject		nvidia_handle
 	cmd		const[NV0080_CTRL_CMD_FIFO_GET_CHANNELLIST, int32]
 	flags		flags[nvos54_flags, int32]
 	params		ptr[inout, nv0080_ctrl_fifo_get_channellist_params]
@@ -309,8 +337,8 @@ nvos54_fifo_get_channellist {
 } [size[32]]
 
 nvos54_gr_get_ctx_buffer_size {
-	hClient		int32
-	hObject		int32
+	hClient		nvidia_handle
+	hObject		nvidia_handle
 	cmd		const[NV2080_CTRL_CMD_GR_GET_CTX_BUFFER_SIZE, int32]
 	flags		flags[nvos54_flags, int32]
 	params		ptr[inout, nv2080_ctrl_gr_get_ctx_buffer_size_params]
@@ -319,9 +347,9 @@ nvos54_gr_get_ctx_buffer_size {
 } [size[32]]
 
 nvos64 {
-	hRoot			int32
-	hObjectParent		int32
-	hObjectNew		int32
+	hRoot			nvidia_handle
+	hObjectParent		nvidia_handle
+	hObjectNew		nvidia_handle	(inout)
 	hClass			int32
 	pAllocParms		ptr[in, array[int8]]
 	pRightsRequested	ptr[in, array[int8]]
@@ -332,10 +360,58 @@ nvos64 {
 
 nvos64_flags = 0, 1
 
+# nvos.h: NV01_ROOT (class 0x41) is the RM client itself; hRoot/hObjectParent
+# must be 0 and the driver writes the real client handle to hObjectNew.
+nvos64_root_client {
+	hRoot			const[0, int32]
+	hObjectParent		const[0, int32]
+	hObjectNew		nvidia_handle	(out)
+	hClass			const[0x41, int32]
+	pAllocParms		const[0, int64]
+	pRightsRequested	const[0, int64]
+	paramsSize		const[0, int32]
+	flags			const[0, int32]
+	status			int32
+}
+
+# class/cl0080.h: NV01_DEVICE_0 (class 0x80) allocation.  deviceId is the GPU
+# device instance (0 on the single-GPU guest); hClientShare is the second
+# client passed by B3-style callers, so it consumes another client handle.
+nvos64_device {
+	hRoot			nvidia_handle
+	hObjectParent		nvidia_handle
+	hObjectNew		nvidia_handle	(out)
+	hClass			const[0x80, int32]
+	pAllocParms		ptr[in, nv0080_alloc_parms]
+	pRightsRequested	const[0, int64]
+	paramsSize		len[pAllocParms, int32]
+	flags			const[0, int32]
+	status			int32
+}
+
+nv0080_alloc_parms {
+	deviceId	int32
+	hClientShare	nvidia_handle
+	hTargetClient	nvidia_handle
+	hTargetDevice	nvidia_handle
+	flags		int32
+	# The SDK leaves bytes 20..23 as padding before vaSpaceSize.  Spelling
+	# that padding as fd_nvidia_dev is deliberate: it makes the device
+	# allocation depend on syz_open_dev$nvidia, and the GPU device instance
+	# only exists while /dev/nvidia0 is open (gpumgrGetPrimaryForDevice
+	# otherwise returns NV_ERR_INVALID_STATE).  The driver ignores padding,
+	# so this changes the dataflow, not the ABI (size stays 56).
+	reserved_fd	fd_nvidia_dev
+	vaSpaceSize	int64
+	vaStartInternal	int64
+	vaLimitInternal	int64
+	vaMode		int32
+} [size[56]]
+
 nvos00 {
-	hRoot		int32
-	hObjectParent	int32
-	hObjectOld	int32
+	hRoot		nvidia_handle
+	hObjectParent	nvidia_handle
+	hObjectOld	nvidia_handle
 	status		int32
 }
 
@@ -345,9 +421,9 @@ nv_ioctl_nvos02_fd {
 }
 
 nvos02 {
-	hRoot		int32
-	hObjectParent	int32
-	hObjectNew	int32
+	hRoot		nvidia_handle
+	hObjectParent	nvidia_handle
+	hObjectNew	nvidia_handle	(inout)
 	hClass		int32
 	flags		flags[nvos02_flags, int32]
 	pMemory		ptr[in, array[int8]]
@@ -363,9 +439,9 @@ nv_ioctl_nvos33_fd {
 }
 
 nvos33 {
-	hClient		int32
-	hDevice		int32
-	hMemory		int32
+	hClient		nvidia_handle
+	hDevice		nvidia_handle
+	hMemory		nvidia_handle
 	offset		int64
 	length		int64
 	pLinearAddress	int64
@@ -380,8 +456,8 @@ nv_ioctl_register_fd {
 }
 
 nv_ioctl_os_event {
-	hClient	int32
-	hDevice	int32
+	hClient	nvidia_handle
+	hDevice	nvidia_handle
 	fd	fd
 	status	int32
 }
@@ -528,16 +604,16 @@ uvm_destroy_range_group_params {
 uvm_register_gpu_va_space_params {
 	gpu_uuid	array[int8, 16]
 	rm_ctrl_fd	int32
-	h_client	int32
-	h_va_space	int32
+	h_client	nvidia_handle
+	h_va_space	nvidia_handle
 	rm_status	int32
 } [size[32]]
 
 uvm_register_channel_params {
 	gpu_uuid	array[int8, 16]
 	rm_ctrl_fd	int32
-	h_client	int32
-	h_channel	int32
+	h_client	nvidia_handle
+	h_channel	nvidia_handle
 	base		int64
 	length		int64
 	rm_status	int32
@@ -552,8 +628,8 @@ uvm_map_external_allocation_params {
 	per_gpu_attributes	array[uvm_gpu_mapping_attributes, 256]
 	gpu_attributes_count	int64
 	rm_ctrl_fd		int32
-	h_client		int32
-	h_memory		int32
+	h_client		nvidia_handle
+	h_memory		nvidia_handle
 	rm_status		int32
 } [size[9264]]
 
@@ -567,10 +643,10 @@ uvm_register_gpu_params {
 	numa_enabled		int8
 	pad			array[int8, 3]
 	numa_node_id		int32
-	rm_ctrl_fd		int32
-	h_client		int32
-	h_smc_part_ref		int32
-	rm_status		int32
+	rm_ctrl_fd	int32
+	h_client	nvidia_handle
+	h_smc_part_ref		nvidia_handle
+	rm_status	int32
 } [size[40]]
 
 uvm_pageable_mem_access_params {
@@ -616,8 +692,8 @@ uvm_unregister_gpu_va_space_params {
 } [size[20]]
 
 uvm_unregister_channel_params {
-	h_client	int32
-	h_channel	int32
+	h_client	nvidia_handle
+	h_channel	nvidia_handle
 	rm_status	int32
 } [size[12]]
 
