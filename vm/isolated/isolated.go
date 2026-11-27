@@ -127,6 +127,14 @@ func (pool *Pool) Create(_ context.Context, workdir string, index int) (vmimpl.I
 	// Remove temp files from previous runs.
 	inst.ssh("rm -rf '" + filepath.Join(inst.cfg.TargetDir, "*") + "'")
 
+	// OpenRemoteConsole() runs `dmesg -w`, which replays the whole ring
+	// buffer before following new messages.  If a previous instance crashed,
+	// every new instance would re-detect that old report and syz-manager would
+	// spin in a crash/restart loop (observed: the same BUG timestamp in 62
+	// crash dirs while exec total stayed frozen).  The previous report has
+	// already been saved by the time Create() runs, so clear the buffer here.
+	inst.ssh("dmesg -C >/dev/null 2>&1 || true")
+
 	// Remove pstore files from previous runs.
 	if inst.cfg.Pstore {
 		inst.ssh(fmt.Sprintf("rm %v", pstoreConsoleFile))
