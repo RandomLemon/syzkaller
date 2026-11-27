@@ -22,6 +22,17 @@ define NV_ESC_CARD_INFO 3372238536
 define NV_ESC_NUMA_INFO 3257943767
 define NV_ESC_ALLOC_OS_EVENT 3222292174
 define NV_ESC_RM_UPDATE_DEVICE_MAPPING_INFO	3223864926	# 0xc028465e
+define NV_ESC_FREE_OS_EVENT		3222292175	# 0xc01046cf
+define NV_ESC_STATUS_CODE		3222030033	# 0xc00c46d1
+define NV_ESC_CHECK_VERSION_STR		3225962194	# 0xc04846d2
+define NV_ESC_IOCTL_XFER_CMD		3222292179	# 0xc01046d3
+define NV_ESC_QUERY_DEVICE_INTR		3221767893	# 0xc00846d5
+define NV_ESC_SYS_PARAMS		3221767894	# 0xc00846d6
+define NV_ESC_SET_NUMA_STATUS		3221505752	# 0xc00446d8
+define NV_ESC_EXPORT_TO_DMABUF_FD	3392161497	# 0xca3046d9
+define NV_ESC_WAIT_OPEN_COMPLETE		3221767898	# 0xc00846da
+define NV_ESC_RM_UNMAP_MEMORY		3223340623	# 0xc020464f
+define NV_ESC_RM_SHARE			3222816309	# 0xc0184635
 define UVM_INITIALIZE 805306369
 define UVM_MM_INITIALIZE 75
 
@@ -48,6 +59,20 @@ ioctl$NV_ESC_RM_ALLOC_MEMORY_dev(fd fd_nvidia_dev, cmd const[NV_ESC_RM_ALLOC_MEM
 ioctl$NV_ESC_RM_MAP_MEMORY_dev(fd fd_nvidia_dev, cmd const[NV_ESC_RM_MAP_MEMORY], arg ptr[in, nv_ioctl_nvos33_fd])
 ioctl$NV_ESC_ALLOC_OS_EVENT_dev(fd fd_nvidia_dev, cmd const[NV_ESC_ALLOC_OS_EVENT], arg ptr[inout, nv_ioctl_os_event])
 ioctl$NV_ESC_RM_UPDATE_DEVICE_MAPPING_INFO(fd fd_nvidiactl, cmd const[NV_ESC_RM_UPDATE_DEVICE_MAPPING_INFO], arg ptr[in, nvos56])
+ioctl$NV_ESC_FREE_OS_EVENT(fd fd_nvidiactl, cmd const[NV_ESC_FREE_OS_EVENT], arg ptr[inout, nv_ioctl_os_event])
+ioctl$NV_ESC_FREE_OS_EVENT_dev(fd fd_nvidia_dev, cmd const[NV_ESC_FREE_OS_EVENT], arg ptr[inout, nv_ioctl_os_event])
+ioctl$NV_ESC_STATUS_CODE(fd fd_nvidiactl, cmd const[NV_ESC_STATUS_CODE], arg ptr[inout, nv_ioctl_status_code])
+ioctl$NV_ESC_CHECK_VERSION_STR(fd fd_nvidiactl, cmd const[NV_ESC_CHECK_VERSION_STR], arg ptr[inout, nv_ioctl_rm_api_version])
+ioctl$NV_ESC_IOCTL_XFER_CMD(fd fd_nvidiactl, cmd const[NV_ESC_IOCTL_XFER_CMD], arg ptr[in, nv_ioctl_xfer])
+ioctl$NV_ESC_IOCTL_XFER_CMD_dev(fd fd_nvidia_dev, cmd const[NV_ESC_IOCTL_XFER_CMD], arg ptr[in, nv_ioctl_xfer])
+ioctl$NV_ESC_QUERY_DEVICE_INTR(fd fd_nvidia_dev, cmd const[NV_ESC_QUERY_DEVICE_INTR], arg ptr[inout, nv_ioctl_query_device_intr])
+ioctl$NV_ESC_SYS_PARAMS(fd fd_nvidiactl, cmd const[NV_ESC_SYS_PARAMS], arg ptr[in, nv_ioctl_sys_params])
+ioctl$NV_ESC_SET_NUMA_STATUS(fd fd_nvidia_dev, cmd const[NV_ESC_SET_NUMA_STATUS], arg ptr[in, nv_ioctl_set_numa_status])
+ioctl$NV_ESC_EXPORT_TO_DMABUF_FD(fd fd_nvidia_dev, cmd const[NV_ESC_EXPORT_TO_DMABUF_FD], arg ptr[inout, nv_ioctl_export_to_dma_buf_fd])
+ioctl$NV_ESC_WAIT_OPEN_COMPLETE(fd fd_nvidiactl, cmd const[NV_ESC_WAIT_OPEN_COMPLETE], arg ptr[inout, nv_ioctl_wait_open_complete])
+ioctl$NV_ESC_WAIT_OPEN_COMPLETE_dev(fd fd_nvidia_dev, cmd const[NV_ESC_WAIT_OPEN_COMPLETE], arg ptr[inout, nv_ioctl_wait_open_complete])
+ioctl$NV_ESC_RM_UNMAP_MEMORY(fd fd_nvidiactl, cmd const[NV_ESC_RM_UNMAP_MEMORY], arg ptr[in, nvos34])
+ioctl$NV_ESC_RM_SHARE(fd fd_nvidiactl, cmd const[NV_ESC_RM_SHARE], arg ptr[in, nvos57])
 
 nvos56 {
 	hClient		int32
@@ -57,6 +82,106 @@ nvos56 {
 	pNewCpuAddress	int64
 	status		int32
 }
+
+# nv_ioctl.h: nv_ioctl_status_code_t (12 B: two pad bytes after slot).
+nv_ioctl_status_code {
+	domain	int32
+	bus	int8
+	slot	int8
+	pad	const[0, int16]
+	status	int32
+} [size[12]]
+
+# nv_ioctl.h: nv_ioctl_rm_api_version_t.  The handler compares the full
+# NUL-padded 64-byte string (NV_RM_API_VERSION_STRING_LENGTH), so the model has
+# to carry all 64 bytes; a `string` would stop at the first NUL.
+nv_ioctl_rm_api_version {
+	cmd		int32
+	reply		int32
+	version_string	array[int8, 64]
+} [size[72]]
+
+# nv_ioctl.h: nv_ioctl_xfer_t, the fixed outer structure of
+# NV_ESC_IOCTL_XFER_CMD.  cmd/size/ptr select and describe the forwarded
+# request; nv.c only validates arg_size (16) before trusting them.
+nv_ioctl_xfer {
+	cmd	int32
+	size	int32
+	ptr	int64
+} [size[16]]
+
+# nv-ioctl.h: nv_ioctl_query_device_intr_t.
+nv_ioctl_query_device_intr {
+	intr_status	int32
+	status		int32
+} [size[8]]
+
+# nv-ioctl.h: nv_ioctl_sys_params_t.
+nv_ioctl_sys_params {
+	memblock_size	int64
+} [size[8]]
+
+# nv-ioctl-numa.h: nv_ioctl_set_numa_status_t (CAP_SYS_ADMIN in the handler).
+nv_ioctl_set_numa_status {
+	status	int32
+} [size[4]]
+
+# nv-ioctl.h: nv_ioctl_wait_open_complete_t.
+nv_ioctl_wait_open_complete {
+	rc		int32
+	adapter_status	int32
+} [size[8]]
+
+# nv-ioctl.h: nv_ioctl_export_to_dma_buf_fd_t.  Handles/offsets/sizes are
+# 128-entry arrays; offsets and sizes are 8-byte aligned (offsets at 552,
+# sizes at 1576), status at 2600 and the struct pads to 2608.
+nv_ioctl_export_to_dma_buf_fd {
+	fd		int32
+	h_client	int32
+	total_objects	int32
+	num_objects	int32
+	index		int32
+	pad0		const[0, int32]
+	total_size	int64
+	mapping_type	int8
+	b_allow_mmap	int8
+	pad1		const[0, int16]
+	handles		array[int32, 128]
+	pad2		const[0, int32]
+	offsets		array[int64, 128]
+	sizes		array[int64, 128]
+	status		int32
+} [size[2608]]
+
+# nvos.h: NVOS34_PARAMETERS (NV_ESC_RM_UNMAP_MEMORY).  pLinearAddress is
+# 8-byte aligned, hence the 4-byte pad after hMemory.
+nvos34 {
+	h_client		int32
+	h_device		int32
+	h_memory		int32
+	pad			const[0, int32]
+	p_linear_address	int64
+	status			int32
+	flags			int32
+} [size[32]]
+
+# rs_access.h: RS_SHARE_POLICY.  SDK_RS_ACCESS_MAX_LIMBS is 1, so accessMask
+# is a single NvU32; type is u16 and action u8, then one pad byte.
+nvos57_share_policy {
+	target		int32
+	access_mask	int32
+	share_type	int16
+	action		int8
+	pad		const[0, int8]
+} [size[12]]
+
+# nvos.h: NVOS57_PARAMETERS (NV_ESC_RM_SHARE).
+nvos57 {
+	h_client	int32
+	h_object	int32
+	share_policy	nvos57_share_policy
+	status		int32
+} [size[24]]
 
 nvos54 {
 	hClient		int32
