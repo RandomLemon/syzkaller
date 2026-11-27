@@ -26,6 +26,17 @@ define NV_ESC_FREE_OS_EVENT		3222292175	# 0xc01046cf
 define NV_ESC_STATUS_CODE		3222030033	# 0xc00c46d1
 define NV_ESC_CHECK_VERSION_STR		3225962194	# 0xc04846d2
 define NV_ESC_IOCTL_XFER_CMD		3222292179	# 0xc01046d3
+# ATTACH_GPUS_TO_FD's _IOC_SIZE is 4 * number of GPUs, so each N is a distinct
+# request value.  N=1 keeps the bare name; 2..8 get a _N suffix.  N>8 stays
+# unmodeled and is rendered as _IOC(...) by the decoder.
+define NV_ESC_ATTACH_GPUS_TO_FD		3221505748	# 0xc00446d4
+define NV_ESC_ATTACH_GPUS_TO_FD_2	3221767892	# 0xc00846d4
+define NV_ESC_ATTACH_GPUS_TO_FD_3	3222030036	# 0xc00c46d4
+define NV_ESC_ATTACH_GPUS_TO_FD_4	3222292180	# 0xc01046d4
+define NV_ESC_ATTACH_GPUS_TO_FD_5	3222554324	# 0xc01446d4
+define NV_ESC_ATTACH_GPUS_TO_FD_6	3222816468	# 0xc01846d4
+define NV_ESC_ATTACH_GPUS_TO_FD_7	3223078612	# 0xc01c46d4
+define NV_ESC_ATTACH_GPUS_TO_FD_8	3223340756	# 0xc02046d4
 define NV_ESC_QUERY_DEVICE_INTR		3221767893	# 0xc00846d5
 define NV_ESC_SYS_PARAMS		3221767894	# 0xc00846d6
 define NV_ESC_SET_NUMA_STATUS		3221505752	# 0xc00446d8
@@ -65,6 +76,14 @@ ioctl$NV_ESC_STATUS_CODE(fd fd_nvidiactl, cmd const[NV_ESC_STATUS_CODE], arg ptr
 ioctl$NV_ESC_CHECK_VERSION_STR(fd fd_nvidiactl, cmd const[NV_ESC_CHECK_VERSION_STR], arg ptr[inout, nv_ioctl_rm_api_version])
 ioctl$NV_ESC_IOCTL_XFER_CMD(fd fd_nvidiactl, cmd const[NV_ESC_IOCTL_XFER_CMD], arg ptr[in, nv_ioctl_xfer])
 ioctl$NV_ESC_IOCTL_XFER_CMD_dev(fd fd_nvidia_dev, cmd const[NV_ESC_IOCTL_XFER_CMD], arg ptr[in, nv_ioctl_xfer])
+ioctl$NV_ESC_ATTACH_GPUS_TO_FD(fd fd_nvidiactl, cmd const[NV_ESC_ATTACH_GPUS_TO_FD], arg ptr[in, array[int32, 1]])
+ioctl$NV_ESC_ATTACH_GPUS_TO_FD_2(fd fd_nvidiactl, cmd const[NV_ESC_ATTACH_GPUS_TO_FD_2], arg ptr[in, array[int32, 2]])
+ioctl$NV_ESC_ATTACH_GPUS_TO_FD_3(fd fd_nvidiactl, cmd const[NV_ESC_ATTACH_GPUS_TO_FD_3], arg ptr[in, array[int32, 3]])
+ioctl$NV_ESC_ATTACH_GPUS_TO_FD_4(fd fd_nvidiactl, cmd const[NV_ESC_ATTACH_GPUS_TO_FD_4], arg ptr[in, array[int32, 4]])
+ioctl$NV_ESC_ATTACH_GPUS_TO_FD_5(fd fd_nvidiactl, cmd const[NV_ESC_ATTACH_GPUS_TO_FD_5], arg ptr[in, array[int32, 5]])
+ioctl$NV_ESC_ATTACH_GPUS_TO_FD_6(fd fd_nvidiactl, cmd const[NV_ESC_ATTACH_GPUS_TO_FD_6], arg ptr[in, array[int32, 6]])
+ioctl$NV_ESC_ATTACH_GPUS_TO_FD_7(fd fd_nvidiactl, cmd const[NV_ESC_ATTACH_GPUS_TO_FD_7], arg ptr[in, array[int32, 7]])
+ioctl$NV_ESC_ATTACH_GPUS_TO_FD_8(fd fd_nvidiactl, cmd const[NV_ESC_ATTACH_GPUS_TO_FD_8], arg ptr[in, array[int32, 8]])
 ioctl$NV_ESC_QUERY_DEVICE_INTR(fd fd_nvidia_dev, cmd const[NV_ESC_QUERY_DEVICE_INTR], arg ptr[inout, nv_ioctl_query_device_intr])
 ioctl$NV_ESC_SYS_PARAMS(fd fd_nvidiactl, cmd const[NV_ESC_SYS_PARAMS], arg ptr[in, nv_ioctl_sys_params])
 ioctl$NV_ESC_SET_NUMA_STATUS(fd fd_nvidia_dev, cmd const[NV_ESC_SET_NUMA_STATUS], arg ptr[in, nv_ioctl_set_numa_status])
