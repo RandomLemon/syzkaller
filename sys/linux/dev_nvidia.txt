@@ -14,6 +14,13 @@ resource fd_nvidia_uvm[fd_nvidia]
 
 define NV_ESC_REGISTER_FD 3221505737
 define NV_ESC_RM_CONTROL 3223340586
+# RM_CONTROL sub-commands (NVOS54::cmd).  Values come from
+# src/common/sdk/nvidia/inc/ctrl/ctrl*.h via scripts/nvidia_abi_check.c.
+define NV0000_CTRL_CMD_CLIENT_GET_ADDR_SPACE_TYPE 3329		# 0x00000d01
+define NV906F_CTRL_GET_CLASS_ENGINEID			2423193857	# 0x906f0101
+define NVC36F_CTRL_CMD_GPFIFO_GET_WORK_SUBMIT_TOKEN	3278831880	# 0xc36f0108
+define NV0080_CTRL_CMD_FIFO_GET_CHANNELLIST		8394509		# 0x0080170d
+define NV2080_CTRL_CMD_GR_GET_CTX_BUFFER_SIZE		545264152	# 0x20801218
 define NV_ESC_RM_ALLOC 3224389163
 define NV_ESC_RM_FREE 3222292009
 define NV_ESC_RM_MAP_MEMORY 3224913486
@@ -53,6 +60,14 @@ syz_open_dev$nvidia_uvm(dev ptr[in, string["/dev/nvidia-uvm"]], id intptr, flags
 
 ioctl$NV_ESC_RM_CONTROL(fd fd_nvidiactl, cmd const[NV_ESC_RM_CONTROL], arg ptr[in, nvos54])
 ioctl$NV_ESC_RM_CONTROL_dev(fd fd_nvidia_dev, cmd const[NV_ESC_RM_CONTROL], arg ptr[in, nvos54])
+# Typed vertical slices for the five hottest RM_CONTROL sub-commands.  The
+# enclosing request is identical, so the converters pick these by the nested
+# NVOS54::cmd value; everything else keeps the generic nvos54 above.
+ioctl$NV_ESC_RM_CONTROL_CLIENT_GET_ADDR_SPACE_TYPE(fd fd_nvidiactl, cmd const[NV_ESC_RM_CONTROL], arg ptr[in, nvos54_client_get_addr_space_type])
+ioctl$NV_ESC_RM_CONTROL_GET_CLASS_ENGINEID(fd fd_nvidiactl, cmd const[NV_ESC_RM_CONTROL], arg ptr[in, nvos54_get_class_engineid])
+ioctl$NV_ESC_RM_CONTROL_GPFIFO_GET_WORK_SUBMIT_TOKEN(fd fd_nvidiactl, cmd const[NV_ESC_RM_CONTROL], arg ptr[in, nvos54_gpfifo_get_work_submit_token])
+ioctl$NV_ESC_RM_CONTROL_FIFO_GET_CHANNELLIST(fd fd_nvidiactl, cmd const[NV_ESC_RM_CONTROL], arg ptr[in, nvos54_fifo_get_channellist])
+ioctl$NV_ESC_RM_CONTROL_GR_GET_CTX_BUFFER_SIZE(fd fd_nvidiactl, cmd const[NV_ESC_RM_CONTROL], arg ptr[in, nvos54_gr_get_ctx_buffer_size])
 ioctl$NV_ESC_RM_ALLOC(fd fd_nvidiactl, cmd const[NV_ESC_RM_ALLOC], arg ptr[in, nvos64])
 ioctl$NV_ESC_RM_FREE(fd fd_nvidiactl, cmd const[NV_ESC_RM_FREE], arg ptr[in, nvos00])
 ioctl$NV_ESC_RM_FREE_dev(fd fd_nvidia_dev, cmd const[NV_ESC_RM_FREE], arg ptr[in, nvos00])
@@ -213,6 +228,95 @@ nvos54 {
 }
 
 nvos54_flags = 0, 1, 2, 4
+
+# ---- RM_CONTROL typed sub-command slices ----
+# ctrl0000client.h: NV0000_CTRL_CLIENT_GET_ADDR_SPACE_TYPE_PARAMS.
+nv0000_ctrl_client_get_addr_space_type_params {
+	hObject		int32
+	mapFlags	int32
+	addrSpaceType	int32
+} [size[12]]
+
+# ctrl906f.h: NV906F_CTRL_GET_CLASS_ENGINEID_PARAMS.
+nv906f_ctrl_get_class_engineid_params {
+	hObject		int32
+	classEngineID	int32
+	classID		int32
+	engineID	int32
+} [size[16]]
+
+# ctrlc36f.h: NVC36F_CTRL_CMD_GPFIFO_GET_WORK_SUBMIT_TOKEN_PARAMS.
+nvc36f_ctrl_cmd_gpfifo_get_work_submit_token_params {
+	workSubmitToken	int32
+} [size[4]]
+
+# ctrl0080/ctrl0080fifo.h: NV0080_CTRL_FIFO_GET_CHANNELLIST_PARAMS.
+# numChannels counts both arrays; the compiler inserts the 4-byte alignment
+# padding before the pointers (do not spell it out: the trace converters skip
+# only compiler-inserted pads, and an explicit field would consume a traced
+# value).
+nv0080_ctrl_fifo_get_channellist_params {
+	numChannels		int32
+	pChannelHandleList	ptr[in, array[int32]]
+	pChannelList		ptr[out, array[int32]]
+} [size[24]]
+
+# ctrl2080/ctrl2080gr.h: NV2080_CTRL_GR_GET_CTX_BUFFER_SIZE_PARAMS.
+# totalBufferSize is 8-byte aligned; the compiler inserts the 4-byte pad.
+nv2080_ctrl_gr_get_ctx_buffer_size_params {
+	hChannel	int32
+	totalBufferSize	int64
+} [size[16]]
+
+nvos54_client_get_addr_space_type {
+	hClient		int32
+	hObject		int32
+	cmd		const[NV0000_CTRL_CMD_CLIENT_GET_ADDR_SPACE_TYPE, int32]
+	flags		flags[nvos54_flags, int32]
+	params		ptr[inout, nv0000_ctrl_client_get_addr_space_type_params]
+	paramsSize	len[params, int32]
+	status		int32
+} [size[32]]
+
+nvos54_get_class_engineid {
+	hClient		int32
+	hObject		int32
+	cmd		const[NV906F_CTRL_GET_CLASS_ENGINEID, int32]
+	flags		flags[nvos54_flags, int32]
+	params		ptr[inout, nv906f_ctrl_get_class_engineid_params]
+	paramsSize	len[params, int32]
+	status		int32
+} [size[32]]
+
+nvos54_gpfifo_get_work_submit_token {
+	hClient		int32
+	hObject		int32
+	cmd		const[NVC36F_CTRL_CMD_GPFIFO_GET_WORK_SUBMIT_TOKEN, int32]
+	flags		flags[nvos54_flags, int32]
+	params		ptr[inout, nvc36f_ctrl_cmd_gpfifo_get_work_submit_token_params]
+	paramsSize	len[params, int32]
+	status		int32
+} [size[32]]
+
+nvos54_fifo_get_channellist {
+	hClient		int32
+	hObject		int32
+	cmd		const[NV0080_CTRL_CMD_FIFO_GET_CHANNELLIST, int32]
+	flags		flags[nvos54_flags, int32]
+	params		ptr[inout, nv0080_ctrl_fifo_get_channellist_params]
+	paramsSize	len[params, int32]
+	status		int32
+} [size[32]]
+
+nvos54_gr_get_ctx_buffer_size {
+	hClient		int32
+	hObject		int32
+	cmd		const[NV2080_CTRL_CMD_GR_GET_CTX_BUFFER_SIZE, int32]
+	flags		flags[nvos54_flags, int32]
+	params		ptr[inout, nv2080_ctrl_gr_get_ctx_buffer_size_params]
+	paramsSize	len[params, int32]
+	status		int32
+} [size[32]]
 
 nvos64 {
 	hRoot			int32
